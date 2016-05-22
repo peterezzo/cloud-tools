@@ -4,19 +4,21 @@
 
 import boto3
 
-def ec2_start(resource):
+
+def ec2_start(resource, role):
     """Start an AWS EC2 instance
-       resource = already open ec2 boto3.resource"""
+       resource = already open ec2 boto3.resource
+       role     = puppet role to configure system as"""
 
     # This userdata is specific for a Centos or Ubuntu devbox using standalone puppet
     userdata = ('#!/bin/sh\n'
                 'mkdir -vp /etc/facter/facts.d\n'
-                'echo "hostgroup=aws" > /etc/facter/facts.d/hostgroup.txt\n'  #used by puppet
-                'echo "role=devbox" > /etc/facter/facts.d/role.txt\n'         #used by puppet
+                'echo "hostgroup=aws" > /etc/facter/facts.d/hostgroup.txt\n'
+                'echo "role={0}" > /etc/facter/facts.d/role.txt\n'            # 0=role
                 'if [[ `which yum` ]]; then yum -y install git; else apt-get install git; fi\n'
                 'git clone https://github.com/peterezzo/petenet-puppet.git /etc/puppet\n'
                 '/bin/sh /etc/puppet/support_scripts/bootstrap-puppet.sh\n'
-                'puppet apply /etc/puppet/manifests/site.pp\n')
+                'puppet apply /etc/puppet/manifests/site.pp\n').format(role)
 
     # Centos7 ImageId = ami-6d1c2007
     instance = resource.create_instances(
@@ -72,7 +74,7 @@ def main():
     count = sum(1 for _ in instances)
     if count == 0:
         print("No instances running, starting up")
-        new_instances = ec2_start(ec2)
+        new_instances = ec2_start(ec2, "devbox")
         for instance in new_instances:
             # public IP is only allocated when system is running
             instance.wait_until_running()
