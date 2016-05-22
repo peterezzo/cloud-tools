@@ -8,15 +8,16 @@ def ec2_start(resource):
     """Start an AWS EC2 instance
        resource = already open ec2 boto3.resource"""
 
-    # TODO: This userdata is specific for a Centos devbox using standalone puppet
+    # This userdata is specific for a Centos devbox using standalone puppet
     userdata = ('#!/bin/sh\n'
                 'mkdir -p /etc/facter/facts.d\n'
                 'echo "hostgroup=aws" > /etc/facter/facts.d/hostgroup.txt\n'  #used by puppet
+                'echo "role=devbox" > /etc/facter/facts.d/role.txt\n'         #used by puppet
                 'rpm -ivh http://yum.puppetlabs.com/puppetlabs-release-el-7.noarch.rpm\n'
                 'yes | yum -y install git puppet\n'
-                'mv /etc/puppet /etc/puppet.repo\n'
+                'mv -v /etc/puppet /etc/puppet.repo\n'
                 'git clone https://github.com/peterezzo/petenet-puppet.git /etc/puppet\n'
-                'cp /etc/puppet.repo/{auth.conf,puppet.conf} /etc/puppet\n'
+                'cp -v /etc/puppet.repo/{auth.conf,puppet.conf} /etc/puppet\n'
                 'puppet apply /etc/puppet/manifests/site.pp\n')
 
     # Centos7 ImageId = ami-6d1c2007
@@ -72,9 +73,9 @@ def main():
     # supposedly this sum does not load the whole collection in memory
     count = sum(1 for _ in instances)
     if count == 0:
-        print("No instances running, starting VM")
-        vm = ec2_start(ec2)
-        for instance in vm:
+        print("No instances running, starting up")
+        new_instances = ec2_start(ec2)
+        for instance in new_instances:
             # public IP is only allocated when system is running
             instance.wait_until_running()
             instance.load()
