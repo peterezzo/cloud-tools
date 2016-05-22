@@ -8,16 +8,14 @@ def ec2_start(resource):
     """Start an AWS EC2 instance
        resource = already open ec2 boto3.resource"""
 
-    # This userdata is specific for a Centos devbox using standalone puppet
+    # This userdata is specific for a Centos or Ubuntu devbox using standalone puppet
     userdata = ('#!/bin/sh\n'
-                'mkdir -p /etc/facter/facts.d\n'
+                'mkdir -vp /etc/facter/facts.d\n'
                 'echo "hostgroup=aws" > /etc/facter/facts.d/hostgroup.txt\n'  #used by puppet
                 'echo "role=devbox" > /etc/facter/facts.d/role.txt\n'         #used by puppet
-                'rpm -ivh http://yum.puppetlabs.com/puppetlabs-release-el-7.noarch.rpm\n'
-                'yes | yum -y install git puppet\n'
-                'mv -v /etc/puppet /etc/puppet.repo\n'
+                'if [[ `which yum` ]]; then yum -y install git; else apt-get install git; fi\n'
                 'git clone https://github.com/peterezzo/petenet-puppet.git /etc/puppet\n'
-                'cp -v /etc/puppet.repo/{auth.conf,puppet.conf} /etc/puppet\n'
+                '/bin/sh /etc/puppet/support_scripts/bootstrap-puppet.sh\n'
                 'puppet apply /etc/puppet/manifests/site.pp\n')
 
     # Centos7 ImageId = ami-6d1c2007
