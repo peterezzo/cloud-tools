@@ -3,12 +3,16 @@
    It currently accepts no arguments.  Run once to start devbox.  Run again to terminate."""
 
 import boto3
+import time
 
 
 def ec2_start(resource, role):
     """Start an AWS EC2 instance
-       resource = already open ec2 boto3.resource
-       role     = puppet role to configure system as"""
+    Arguments:
+        resource = already open ec2 boto3.resource
+        role     = puppet role to configure system as
+    Returns:
+        instances = boto3 collection of started instances"""
 
     # This userdata is specific for a Centos or Ubuntu devbox using standalone puppet
     userdata = ('#!/bin/sh\n'
@@ -21,7 +25,7 @@ def ec2_start(resource, role):
                 'puppet apply /etc/puppet/manifests/site.pp\n').format(role)
 
     # Centos7 ImageId = ami-6d1c2007
-    instance = resource.create_instances(
+    instances = resource.create_instances(
         ImageId='ami-6d1c2007',
         MinCount=1,
         MaxCount=1,
@@ -42,44 +46,56 @@ def ec2_start(resource, role):
         ]
     )
 
-    # instance.create_tags()
-    # instance.delete_tags()
+    # not sure if we really need to sleep before tagging but see this often
+    # and we wait until running which takes much longer than 1 second
+    time.sleep(1)
+    for instance in instances:
+        instance.create_tags(
+            Resources=[instance.id],
+            Tags=[
+                {
+                    'Key': 'Role',
+                    'Value': role
+                },
+            ]
+        )
     # instance.console_output()
     # instance.modify_attribute()
-    # instance.load()
-    return instance
+    return instances
 
 
 def ec2_stop(resource, instance_id):
     """Stop and terminate an AWS EC2 instance
-       resource = already open ec2 boto3.resource
-       instance_id = id of instance to terminate"""
+    resource = already open ec2 boto3.resource
+    instance_id = id of instance to terminate"""
 
-    print("Terminating instance id", instance_id)
+    print("Terminating instance id {0}".format(instance_id))
     resource.instances.filter(InstanceIds=[instance_id]).stop()
     resource.instances.filter(InstanceIds=[instance_id]).terminate()
 
 
 def main():
     """This is the main body of the program
-       Receives no arguments"""
+    Receives no arguments (yet)"""
 
+    # open ec2 connection
     ec2 = boto3.resource('ec2')
-
     instances = ec2.instances.filter(
         Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
+
+    role = "devbox"  # hardcode for now
 
     # get a count of the running instances, stop all if any running, start if not
     # supposedly this sum does not load the whole collection in memory
     count = sum(1 for _ in instances)
     if count == 0:
         print("No instances running, starting up")
-        new_instances = ec2_start(ec2, "devbox")
+        new_instances = ec2_start(ec2, role)
         for instance in new_instances:
             # public IP is only allocated when system is running
             instance.wait_until_running()
             instance.load()
-            print("id", instance.id, "\naddress", instance.public_ip_address)
+            print("id: {0}\naddress: {1}".format(instance.id, instance.public_ip_address))
     else:
         print(count, "instances running, killing VM(s)")
         for instance in instances:
