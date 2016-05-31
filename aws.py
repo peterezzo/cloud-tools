@@ -25,6 +25,8 @@ def ec2_start(resource, role):
                 'puppet apply /etc/puppet/manifests/site.pp\n').format(role)
 
     # Centos7 ImageId = ami-6d1c2007
+    # RHEL ImageId = ami-2051294a
+    # Ubuntu 14.04 ImageID = ami-fce3c696
     instances = resource.create_instances(
         ImageId='ami-6d1c2007',
         MinCount=1,
