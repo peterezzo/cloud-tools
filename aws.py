@@ -19,7 +19,7 @@ def ec2_start(resource, role):
                 'mkdir -vp /etc/facter/facts.d\n'
                 'echo "hostgroup=aws" > /etc/facter/facts.d/hostgroup.txt\n'
                 'echo "role={0}" > /etc/facter/facts.d/role.txt\n'            # 0=role
-                'if [[ `which yum` ]]; then yum -y install git; else apt-get install git; fi\n'
+                'if [ `which yum` ]; then yum -y install git; else apt-get update && apt-get install git; fi\n'
                 'git clone https://github.com/peterezzo/petenet-puppet.git /etc/puppet\n'
                 '/bin/sh /etc/puppet/support_scripts/bootstrap-puppet.sh\n'
                 'puppet apply /etc/puppet/manifests/site.pp\n').format(role)
@@ -28,7 +28,7 @@ def ec2_start(resource, role):
     # RHEL ImageId = ami-2051294a
     # Ubuntu 14.04 ImageID = ami-fce3c696
     instances = resource.create_instances(
-        ImageId='ami-6d1c2007',
+        ImageId='ami-fce3c696',
         MinCount=1,
         MaxCount=1,
         InstanceType='t2.nano',
