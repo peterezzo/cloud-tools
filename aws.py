@@ -19,7 +19,8 @@ def ec2_start(resource, role):
                 'mkdir -vp /etc/facter/facts.d\n'
                 'echo "hostgroup=aws" > /etc/facter/facts.d/hostgroup.txt\n'
                 'echo "role={0}" > /etc/facter/facts.d/role.txt\n'            # 0=role
-                'if [ `which yum` ]; then yum -y install git; else apt-get update && apt-get install git; fi\n'
+                'if [ `which yum` ]; then yum -y install git;'
+                'else apt-get -y update && apt-get -y install git; fi\n'
                 'git clone https://github.com/peterezzo/petenet-puppet.git /etc/puppet\n'
                 '/bin/sh /etc/puppet/support_scripts/bootstrap-puppet.sh\n').format(role)
 
