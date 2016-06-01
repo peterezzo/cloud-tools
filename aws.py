@@ -21,8 +21,7 @@ def ec2_start(resource, role):
                 'echo "role={0}" > /etc/facter/facts.d/role.txt\n'            # 0=role
                 'if [ `which yum` ]; then yum -y install git; else apt-get update && apt-get install git; fi\n'
                 'git clone https://github.com/peterezzo/petenet-puppet.git /etc/puppet\n'
-                '/bin/sh /etc/puppet/support_scripts/bootstrap-puppet.sh\n'
-                'puppet apply /etc/puppet/manifests/site.pp\n').format(role)
+                '/bin/sh /etc/puppet/support_scripts/bootstrap-puppet.sh\n').format(role)
 
     # Centos7 ImageId = ami-6d1c2007
     # RHEL ImageId = ami-2051294a
