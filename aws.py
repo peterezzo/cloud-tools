@@ -68,8 +68,11 @@ def ec2_start(resource, role):
 
 def ec2_stop(resource, instance_id):
     """Stop and terminate an AWS EC2 instance
-    resource = already open ec2 boto3.resource
-    instance_id = id of instance to terminate"""
+    Arguments:
+        resource = already open ec2 boto3.resource
+        instance_id = id of instance to terminate
+    Returns:
+        None"""
 
     print("Terminating instance id {0}".format(instance_id))
     resource.instances.filter(InstanceIds=[instance_id]).stop()
@@ -78,7 +81,10 @@ def ec2_stop(resource, instance_id):
 
 def main():
     """This is the main body of the program
-    Receives no arguments (yet)"""
+    Arguments:
+        None (yet)
+    Returns:
+        None"""
 
     # open ec2 connection
     ec2 = boto3.resource('ec2')
