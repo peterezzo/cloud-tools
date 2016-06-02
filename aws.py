@@ -15,17 +15,33 @@ def ec2_start(resource, role):
         instances = boto3 collection of started instances"""
 
     # This userdata is specific for a Centos or Ubuntu devbox using standalone puppet
-    userdata = ('#!/bin/sh\n'
-                'mkdir -vp /etc/facter/facts.d\n'
-                'echo "hostgroup=aws" > /etc/facter/facts.d/hostgroup.txt\n'
-                'echo "role={0}" > /etc/facter/facts.d/role.txt\n'            # 0=role
-                'if [ `which yum` ]; then yum -y install git;'
-                'else apt-get -y update && apt-get -y install git; fi\n'
-                'git clone https://github.com/peterezzo/petenet-puppet.git /etc/puppet\n'
-                '/bin/sh /etc/puppet/support_scripts/bootstrap-puppet.sh\n').format(role)
+    #userdata = ('#!/bin/sh\n'
+    #            'mkdir -vp /etc/facter/facts.d\n'
+    #            'echo "hostgroup=aws" > /etc/facter/facts.d/hostgroup.txt\n'
+    #            'echo "role={0}" > /etc/facter/facts.d/role.txt\n'            # 0=role
+    #            'if [ `which yum` ]; then yum -y install git;'
+    #            'else apt-get -y update && apt-get -y install git; fi\n'
+    #            'git clone https://github.com/peterezzo/petenet-puppet.git /etc/puppet\n'
+    #            '/bin/sh /etc/puppet/support_scripts/bootstrap-puppet.sh\n').format(role)
+
+    userdata = """#cloud-config
+package_update: true
+hostname: devbox
+fqdn: devbox.ewplc.tk
+manage_etc_hosts: true
+packages:
+  - git
+write_files:
+  - path: /etc/facter/facts.d/hostgroup.txt
+    content: hostgroup=aws
+  - path: /etc/facter/facts.d/role.txt
+    content: role={0}
+runcmd:
+  - git clone https://github.com/peterezzo/petenet-puppet.git /etc/puppet
+  - /etc/puppet/support_scripts/bootstrap-puppet.sh""".format(role)
 
     # Centos7 ImageId = ami-6d1c2007
-    # RHEL ImageId = ami-2051294a
+    # RHEL ImageId = ami-2051294a   # also needs t2.micro or higher
     # Ubuntu 14.04 ImageID = ami-fce3c696
     instances = resource.create_instances(
         ImageId='ami-fce3c696',
