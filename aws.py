@@ -2,12 +2,14 @@
 """This is a script that controls a specific AWS instance's lifecycle
    It currently accepts no arguments.  Run once to start devbox.  Run again to terminate."""
 
+from __future__ import print_function, division  # Only tested on Python 2.7 or later
+
 import time
 import subprocess
 import boto3
 
 
-def _hiera_get(item, variable, config='/etc/puppet/hiera.yaml'):
+def hiera_get(item, variable, config='/etc/puppet/hiera.yaml'):
     """Call external hiera binary to get a value
     (sudo gem install -n /usr/local/bin hiera)
 
@@ -22,7 +24,7 @@ def _hiera_get(item, variable, config='/etc/puppet/hiera.yaml'):
                                    universal_newlines=True).strip()
 
 
-def _metadata_get(node):
+def metadata_get(node):
     """Retrieves the metadata from hiera
     Arguments:
         node = str of node (fqdn) to get metadata for
@@ -34,13 +36,13 @@ def _metadata_get(node):
     # get parameters common to all hosting providers or platforms
     params = ['hostname', 'domain', 'provider', 'role', 'repo']
     for item in params:
-        metadata[item] = _hiera_get('metadata:{0}'.format(item), 'fqdn={0}'.format(node))
+        metadata[item] = hiera_get('metadata:{0}'.format(item), 'fqdn={0}'.format(node))
 
     # get parameters unique to a particular provider or platform
     if metadata['provider'] == 'aws':
         params = ['subnet', 'secgroup', 'keypair', 'ami', 'type']
         for item in params:
-            metadata[item] = _hiera_get('metadata:aws:{0}'.format(item), 'fqdn={0}'.format(node))
+            metadata[item] = hiera_get('metadata:aws:{0}'.format(item), 'fqdn={0}'.format(node))
 
     return metadata
 
@@ -139,7 +141,7 @@ def cloud_start(node, resource):
         None"""
 
     # pull the setup data from hiera
-    metadata = _metadata_get(node)
+    metadata = metadata_get(node)
 
     # launch at requested cloud provider and pass in metadata to build
     if metadata['provider'] == 'aws':
@@ -154,7 +156,6 @@ def cloud_start(node, resource):
 def main():
     """This is the main body of the program
     Arguments:
-        None (yet)
     Returns:
         None"""
 
