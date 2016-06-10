@@ -42,7 +42,6 @@ from __future__ import print_function, division  # Only tested on Python 2.7 or 
 
 import sys
 import time
-import logging
 import subprocess
 import boto3
 from docopt import docopt
@@ -76,7 +75,7 @@ def metadata_get(node):
     params = ['hostname', 'domain', 'provider', 'role', 'repo']
     for item in params:
         metadata[item] = hiera_get('metadata:{0}'.format(item), 'fqdn={0}'.format(node))
-        logging.debug('metadata_get  {0:<10} {1}'.format(item, metadata[item]))
+        # logging.debug('metadata_get  {0:<10} {1}'.format(item, metadata[item]))
 
     # build fqdn from hieradata
     metadata['fqdn'] = '{0}.{1}'.format(metadata['hostname'], metadata['domain'])
@@ -86,7 +85,7 @@ def metadata_get(node):
         params = ['subnet', 'secgroup', 'keypair', 'ami', 'type', 'region']
         for item in params:
             metadata[item] = hiera_get('metadata:aws:{0}'.format(item), 'fqdn={0}'.format(node))
-            logging.debug('metadata_get  {0:<10} {1}'.format(item, metadata[item]))
+            # logging.debug('metadata_get  {0:<10} {1}'.format(item, metadata[item]))
 
     return metadata
 
@@ -110,16 +109,6 @@ def ec2_start(resource, metadata):
         metadata = dict of parameters required to launch instance
     Returns:
         None"""
-
-    # first check if another instance with same name is running or starting
-    # if we find one, don't start another, just return to caller
-    running = resource.instances.filter(
-        Filters=[{'Name': 'instance-state-name', 'Values': ['pending', 'running']},
-                 {'Name': 'tag:Name', 'Values': [metadata['fqdn']]}, ])
-    count = sum(1 for _ in running)
-    if count > 0:
-        print('{0} is currently running'.format(metadata['fqdn']))
-        return
 
     # do minimal provisioning of machine through cloud-init
     # this installs git and bootstraps puppet to provision the rest
@@ -185,7 +174,6 @@ runcmd:
         # ensure system is running before we print address to connect to
         instance.wait_until_running()
         # instance.load()
-        # print('address: {0}'.format(instance.public_ip_address))
         ec2_status(resource, metadata)
 
 
@@ -202,39 +190,40 @@ def ec2_stop(resource, metadata):
 
     for instance in instances:
         print("Terminating instance id {0}".format(instance.id))
-        resource.instances.filter(InstanceIds=[instance.id]).stop()
+        # resource.instances.filter(InstanceIds=[instance.id]).stop()
         resource.instances.filter(InstanceIds=[instance.id]).terminate()
 
 
-def ec2_status(resource, metadata):
+def ec2_status(resource, metadata, return_count=False):
     """Get the status of running instances
     Arguments:
-        resource = already open ec2 boto3.resource
-        metadata = dict containing key fqdn with value to filter on
+        resource     = already open ec2 boto3.resource
+        metadata     = dict containing key fqdn with value to filter on
+        return_count = boolean option to return count or not
     Returns:
-        None"""
+        None or count = int of number of running instances"""
 
     instances = resource.instances.filter(
-        Filters=[
-            {
-                'Name': 'tag:Name',
-                'Values': [metadata['fqdn']]
-            },
-            {
-                'Name': 'instance-state-name',
-                'Values': ['running']
-            },
-        ])
+        Filters=[{'Name': 'tag:Name', 'Values': [metadata['fqdn']]},
+                 {'Name': 'instance-state-name', 'Values': ['pending', 'running']}, ])
 
-    # supposedly this sum does not load the whole collection in memory
+    # get a count of the instances and then either return count or print results
     count = sum(1 for _ in instances)
-    if count == 0:
-        print("No instances running")
+    if return_count:
+        # return count for conditional consumption in other functions
+        return count
     else:
-        print(count, "instances running")
-        print('{0:20} {1}'.format('instance_id', 'public_ip_address'))
-        for instance in instances:
-            print('{0:20} {1:20}'.format(instance.id, instance.public_ip_address))
+        # print for human consumption
+        if count == 0:
+            print("No instances running")
+        else:
+            print(count, "instances running")
+            print('{:20} {:15} {:22} {:18} {}'.format(
+                'instance_id', 'state', 'instance_name', 'public_ip_address', 'instance_role'))
+            for instance in instances:
+                print('{:20} {:15} {:22} {:18} {}'.format(
+                    instance.id, instance.state['Name'], instance.tags[0]['Value'],
+                    instance.public_ip_address, instance.tags[1]['Value']))
 
 
 def main(arguments):
@@ -243,42 +232,51 @@ def main(arguments):
         arguments = dict of docopt options
     Returns:
         None"""
+
     # set up logging
     # logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
     # pull the setup data from hiera based on the node identifier given
+    # hiera will return nil for unset variables that were queried, set some safe defaults
     metadata = metadata_get(arguments['<name>'])
+    if 'region' not in metadata or metadata['region'] == 'nil':
+        metadata['region'] = 'us-east-1'
 
     # handle arguments from docopt
-    # check comes first since provider is generally set in metadata
     if arguments['check']:
+        # check comes first since we don't need actually valid metadata to print what we found
         metadata_print(metadata)
 
+    elif arguments['status']:
+        # this status may (eventually) print all running instances from any provider
+        # not entirely sure how to handle multiple regions/datacenters yet
+        # status has only an optional filter, so if we get here without a name print all
+        if arguments['<name>'] is None or metadata['hostname'] == 'nil':
+            metadata['fqdn'] = '*'
+        resource = boto3.resource('ec2', region_name=metadata['region'])
+        ec2_status(resource, metadata)
+
     elif metadata['provider'] == 'aws':
-        # make connection to ec2
+        # make connection to ec2 and then perform actions
         resource = boto3.resource('ec2', region_name=metadata['region'])
 
         if arguments['start']:
             ec2_start(resource, metadata)
         elif arguments['stop']:
             ec2_stop(resource, metadata)
-        elif arguments['status']:
-            ec2_status(resource, metadata)
         elif arguments['toggle']:
-            pass
+            # we either start or stop to go to inverse of the current state
+            count = ec2_status(resource, metadata, return_count=True)
+            if count == 0:
+                ec2_start(resource, metadata)
+            else:
+                ec2_stop(resource, metadata)
 
     elif metadata['provider'] == 'do':
-        print("Digital ocean not yet supported")
-
-    # this status may (eventually) print all running from any provider
-    # not entirely sure how to handle multiple regions/datacenters yet
-    elif arguments['status']:
-        # we get here if status was set without a valid node, print everything!
-        metadata['fqdn'] = '*'
-        region = 'us-east-1'
-        ec2_status(boto3.resource('ec2', region), metadata)
+        print("Digitalocean not yet supported")
 
     else:
+        # not really sure
         print("Unsupported metadata:provider from hiera: {0}".format(metadata['provider']))
         sys.exit(1)
 
