@@ -156,7 +156,7 @@ runcmd:
     # we wait until running anyway which takes much longer than 1 second
     time.sleep(1)
     for instance in instances:
-        # first set tags
+        # first set tags, Name and Role
         instance.create_tags(
             Resources=[instance.id],
             Tags=[
@@ -189,7 +189,7 @@ def ec2_stop(resource, metadata):
                  {'Name': 'tag:Name', 'Values': [metadata['fqdn']]}, ])
 
     for instance in instances:
-        print("Terminating instance id {0}".format(instance.id))
+        print("Terminating vm id {0} name {1}".format(instance.id, instance.tags[0]['Value']))
         # resource.instances.filter(InstanceIds=[instance.id]).stop()
         resource.instances.filter(InstanceIds=[instance.id]).terminate()
 
@@ -221,9 +221,17 @@ def ec2_status(resource, metadata, return_count=False):
             print('{:20} {:15} {:22} {:18} {}'.format(
                 'instance_id', 'state', 'instance_name', 'public_ip_address', 'instance_role'))
             for instance in instances:
+                # tags order does not deterministically stay from run to run and stored as list of dicts
+                # tags = {instance.tags[0]['Key']: instance.tags[0]['Value'],
+                #        instance.tags[1]['Key']: instance.tags[1]['Value']}
+                # probably there is a much better way to map this but let's make it a dict of tags
+                tags = {}
+                for tag in instance.tags:
+                    tags[tag['Key']] = tag['Value']
+
                 print('{:20} {:15} {:22} {:18} {}'.format(
-                    instance.id, instance.state['Name'], instance.tags[0]['Value'],
-                    instance.public_ip_address, instance.tags[1]['Value']))
+                    instance.id, instance.state['Name'], tags['Name'],
+                    instance.public_ip_address, tags['Role']))
 
 
 def main(arguments):
